@@ -3,6 +3,8 @@ package main
 import (
 	"fmt"
 	"log"
+	"os/exec"
+	s "strings"
 	"time"
 
 	"github.com/mackerelio/go-osstat/cpu"
@@ -31,6 +33,14 @@ type NetUsage struct {
 	Name   string
 	RxMbps float64
 	TxMbps float64
+}
+
+// WGPeer holds wireguard peer information
+type WGPeer struct {
+	Name   string
+	LastHS time.Duration
+	RxKbps float64
+	TxKbps float64
 }
 
 func getCPUUsage() CPUUsage {
@@ -97,9 +107,27 @@ func getNetUsage() []NetUsage {
 	return result
 }
 
+func parseWGConf() []WGPeer {
+
+	//out, err := exec.Command("wg show wg0").Output()
+	out, err := exec.Command("cat", "/home/apollo/coding/go/src/icinga2-g3000/wg_mock.txt").Output()
+	if err != nil {
+		log.Fatal("Could not read Wireguard config: " + err.Error())
+	}
+
+	cmdOutArr := s.Split(string(out), "peer:")[1:]
+	for i := 0; i < len(cmdOutArr); i++ {
+		temp := s.Split(cmdOutArr[i], ": ")
+		fmt.Println(temp[2])
+	}
+
+	var result []WGPeer
+	return result
+}
+
 func main() {
 	fmt.Println(getCPUUsage())
 	fmt.Println(getMemUsage())
 	fmt.Println(getNetUsage())
-
+	parseWGConf()
 }
