@@ -105,8 +105,8 @@ func getNetUsage() []NetUsage {
 
 	for i := 0; i < len(before); i++ {
 		// Kbit/s = Bytes * (8 / 1000) --> 1 Mbit/s = 1048.58 Kbit/s
-		rxMbps := float64(after[i].RxBytes-before[i].RxBytes) / (125 * 1048.58)
-		txMbps := float64(after[i].TxBytes-before[i].TxBytes) / (125 * 1048.58)
+		rxMbps := float64(after[i].RxBytes-before[i].RxBytes) / (125 * 1000)
+		txMbps := float64(after[i].TxBytes-before[i].TxBytes) / (125 * 1000)
 
 		result = append(result, NetUsage{before[i].Name, rxMbps, txMbps})
 	}
@@ -116,8 +116,8 @@ func getNetUsage() []NetUsage {
 
 func parseWGDump() [][]string {
 
-	//out, err := exec.Command("wg show wg0 dump").Output()
-	out, err := exec.Command("cat", "wg-mock.txt").Output()
+	out, err := exec.Command("wg", "show", "wg0", "dump").Output()
+	//out, err := exec.Command("cat", "wg-mock.txt").Output()
 	if err != nil {
 		log.Fatal("Could not read Wireguard config: " + err.Error())
 	}
@@ -147,7 +147,7 @@ func calcWGrate() []PeerRate {
 		if err != nil {
 			log.Fatal("Could not parse RX/TX values for peers: " + err.Error())
 		}
-		result = append(result, PeerRate{(rxBefore - rxAfter) * 8.38861, (txBefore - txAfter) * 8.38861})
+		result = append(result, PeerRate{(rxAfter - rxBefore) / (125 * 1000), (txAfter - txBefore) / (125 * 1000)})
 	}
 	return result
 }
