@@ -109,8 +109,8 @@ func getNetUsage() []NetUsage {
 
 func parseWGConf() []WGPeer {
 
-	//out, err := exec.Command("wg show wg0").Output()
-	out, err := exec.Command("cat", "/home/apollo/coding/go/src/icinga2-g3000/wg_mock.txt").Output()
+	//out, err := exec.Command("wg show wg0 dump").Output()
+	out, err := exec.Command("cat", "wg_mock.txt").Output()
 	if err != nil {
 		log.Fatal("Could not read Wireguard config: " + err.Error())
 	}
