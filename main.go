@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"os/exec"
+	"strconv"
 	s "strings"
 	"time"
 
@@ -35,12 +36,18 @@ type NetUsage struct {
 	TxMbps float64
 }
 
+// PeerRate holds Wireguard peers date rates
+type PeerRate struct {
+	RxMbps float64
+	TxMbps float64
+}
+
 // WGPeer holds wireguard peer information
 type WGPeer struct {
-	Name   string
-	LastHS time.Duration
-	RxKbps float64
-	TxKbps float64
+	IntIPAddr string
+	ExtIPAddr string
+	LastHS    int64
+	PeerRate  PeerRate
 }
 
 func getCPUUsage() CPUUsage {
@@ -107,21 +114,54 @@ func getNetUsage() []NetUsage {
 	return result
 }
 
-func parseWGConf() []WGPeer {
+func parseWGDump() [][]string {
 
 	//out, err := exec.Command("wg show wg0 dump").Output()
-	out, err := exec.Command("cat", "wg_mock.txt").Output()
+	out, err := exec.Command("cat", "wg-mock.txt").Output()
 	if err != nil {
 		log.Fatal("Could not read Wireguard config: " + err.Error())
 	}
 
-	cmdOutArr := s.Split(string(out), "peer:")[1:]
-	for i := 0; i < len(cmdOutArr); i++ {
-		temp := s.Split(cmdOutArr[i], ": ")
-		fmt.Println(temp[2])
+	lines := s.Split(s.TrimSpace(string(out)), "\n")[1:]
+
+	var peers [][]string
+	for i := 0; i < len(lines); i++ {
+		peers = append(peers, s.Split(lines[i], "\t"))
 	}
 
+	return peers
+}
+
+func calcWGrate() []PeerRate {
+
+	before := parseWGDump()
+	time.Sleep(time.Duration(1) * time.Second)
+	after := parseWGDump()
+
+	var result []PeerRate
+	for i := 0; i < len(before); i++ {
+		rxBefore, err := strconv.ParseFloat(before[i][5], 64)
+		rxAfter, err := strconv.ParseFloat(after[i][5], 64)
+		txBefore, err := strconv.ParseFloat(before[i][6], 64)
+		txAfter, err := strconv.ParseFloat(after[i][6], 64)
+		if err != nil {
+			log.Fatal("Could not parse RX/TX values for peers: " + err.Error())
+		}
+		result = append(result, PeerRate{(rxBefore - rxAfter) * 8.38861, (txBefore - txAfter) * 8.38861})
+	}
+	return result
+}
+
+func getWGPeers(peers [][]string, rates []PeerRate) []WGPeer {
 	var result []WGPeer
+	for i := 0; i < len(peers); i++ {
+		lastHS, err := strconv.ParseInt(peers[i][4], 10, 64)
+		if err != nil {
+			log.Fatal("Could not parse last-handshake value for peer " + strconv.Itoa(i) + ": " + err.Error())
+		}
+		result = append(result, WGPeer{peers[i][3], peers[i][2], lastHS, rates[i]})
+	}
+
 	return result
 }
 
@@ -129,5 +169,5 @@ func main() {
 	fmt.Println(getCPUUsage())
 	fmt.Println(getMemUsage())
 	fmt.Println(getNetUsage())
-	parseWGConf()
+	fmt.Println(getWGPeers(parseWGDump(), calcWGrate()))
 }
