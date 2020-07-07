@@ -6,6 +6,7 @@ import (
 	"os/exec"
 	"strconv"
 	s "strings"
+	"sync"
 	"time"
 
 	"github.com/mackerelio/go-osstat/cpu"
@@ -104,7 +105,7 @@ func getNetUsage() []NetUsage {
 	var result []NetUsage
 
 	for i := 0; i < len(before); i++ {
-		// Kbit/s = Bytes * (8 / 1000) --> 1 Mbit/s = 1048.58 Kbit/s
+		// Kbit/s = Bytes * (8 / 1000) --> 1 Mbit/s = 1000 Kbit/s
 		rxMbps := float64(after[i].RxBytes-before[i].RxBytes) / (125 * 1000)
 		txMbps := float64(after[i].TxBytes-before[i].TxBytes) / (125 * 1000)
 
@@ -116,8 +117,8 @@ func getNetUsage() []NetUsage {
 
 func parseWGDump() [][]string {
 
-	out, err := exec.Command("wg", "show", "wg0", "dump").Output()
-	//out, err := exec.Command("cat", "wg-mock.txt").Output()
+	//out, err := exec.Command("wg", "show", "wg0", "dump").Output()
+	out, err := exec.Command("cat", "wg-mock.txt").Output()
 	if err != nil {
 		log.Fatal("Could not read Wireguard config: " + err.Error())
 	}
@@ -132,7 +133,7 @@ func parseWGDump() [][]string {
 	return peers
 }
 
-func calcWGrate() []PeerRate {
+func calcPeersRates() []PeerRate {
 
 	before := parseWGDump()
 	time.Sleep(time.Duration(1) * time.Second)
@@ -147,6 +148,7 @@ func calcWGrate() []PeerRate {
 		if err != nil {
 			log.Fatal("Could not parse RX/TX values for peers: " + err.Error())
 		}
+		// Kbit/s = Bytes * (8 / 1000) --> 1 Mbit/s = 1000 Kbit/s
 		result = append(result, PeerRate{(rxAfter - rxBefore) / (125 * 1000), (txAfter - txBefore) / (125 * 1000)})
 	}
 	return result
@@ -159,6 +161,8 @@ func getWGPeers(peers [][]string, rates []PeerRate) []WGPeer {
 		if err != nil {
 			log.Fatal("Could not parse last-handshake value for peer " + strconv.Itoa(i) + ": " + err.Error())
 		}
+
+		// IntIPAddr ExtIPAddr LastHS PeerRate
 		result = append(result, WGPeer{peers[i][3], peers[i][2], lastHS, rates[i]})
 	}
 
@@ -166,8 +170,35 @@ func getWGPeers(peers [][]string, rates []PeerRate) []WGPeer {
 }
 
 func main() {
-	fmt.Println(getCPUUsage())
-	fmt.Println(getMemUsage())
-	fmt.Println(getNetUsage())
-	fmt.Println(getWGPeers(parseWGDump(), calcWGrate()))
+	var wg sync.WaitGroup
+	var cpuUsage CPUUsage
+	var memUsage MemUsage
+	var netUsage []NetUsage
+	var peerRates []PeerRate
+	wg.Add(4)
+	go func() {
+		defer wg.Done()
+		cpuUsage = getCPUUsage()
+	}()
+
+	go func() {
+		defer wg.Done()
+		memUsage = getMemUsage()
+	}()
+
+	go func() {
+		defer wg.Done()
+		netUsage = getNetUsage()
+	}()
+
+	go func() {
+		defer wg.Done()
+		peerRates = calcPeersRates()
+	}()
+	wg.Wait()
+
+	fmt.Println(cpuUsage)
+	fmt.Println(memUsage)
+	fmt.Println(netUsage)
+	fmt.Println(getWGPeers(parseWGDump(), peerRates))
 }
