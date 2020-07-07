@@ -1,8 +1,10 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
+	"os"
 	"os/exec"
 	"strconv"
 	s "strings"
@@ -16,39 +18,48 @@ import (
 
 // CPUUsage holds CPU usage
 type CPUUsage struct {
-	User   float64
-	System float64
-	Idle   float64
+	User   float64 `json:"user"`
+	System float64 `json:"system"`
+	Idle   float64 `json:"idle"`
 }
 
 // MemUsage holds memory usage
 type MemUsage struct {
-	RAMUsed   float64
-	RAMCached float64
-	RAMFree   float64
-	SwapUsed  float64
-	SwapFree  float64
+	RAMUsed   float64 `json:"used"`
+	RAMCached float64 `json:"cached"`
+	RAMFree   float64 `json:"free"`
+	SwapUsed  float64 `json:"swap-used"`
+	SwapFree  float64 `json:"swap-free"`
 }
 
 // NetUsage holds network usage
 type NetUsage struct {
-	Name   string
-	RxMbps float64
-	TxMbps float64
+	Name   string  `json:"device"`
+	RxKbps float64 `json:"rx"`
+	TxKbps float64 `json:"tx"`
 }
 
 // PeerRate holds Wireguard peers date rates
 type PeerRate struct {
-	RxMbps float64
-	TxMbps float64
+	RxKbps float64 `json:"rx"`
+	TxKbps float64 `json:"tx"`
 }
 
 // WGPeer holds wireguard peer information
 type WGPeer struct {
-	IntIPAddr string
-	ExtIPAddr string
-	LastHS    int64
-	PeerRate  PeerRate
+	IntIPAddr string   `json:"internal-ip"`
+	ExtIPAddr string   `json:"external-ip"`
+	LastHS    int64    `json:"latest-handshake"`
+	PeerRate  PeerRate `json:"data-rates"`
+}
+
+// JSONSkeleton defines the structure of the JSON response
+type JSONSkeleton struct {
+	Hostname  string     `json:"hostname"`
+	CPU       CPUUsage   `json:"cpu"`
+	Memory    MemUsage   `json:"memory"`
+	Network   []NetUsage `json:"network"`
+	Wireguard []WGPeer   `json:"wireguard"`
 }
 
 func getCPUUsage() CPUUsage {
@@ -106,10 +117,10 @@ func getNetUsage() []NetUsage {
 
 	for i := 0; i < len(before); i++ {
 		// Kbit/s = Bytes * (8 / 1000) --> 1 Mbit/s = 1000 Kbit/s
-		rxMbps := float64(after[i].RxBytes-before[i].RxBytes) / (125 * 1000)
-		txMbps := float64(after[i].TxBytes-before[i].TxBytes) / (125 * 1000)
+		rxKbps := float64(after[i].RxBytes-before[i].RxBytes) / 125
+		txKbps := float64(after[i].TxBytes-before[i].TxBytes) / 125
 
-		result = append(result, NetUsage{before[i].Name, rxMbps, txMbps})
+		result = append(result, NetUsage{before[i].Name, rxKbps, txKbps})
 	}
 
 	return result
@@ -149,7 +160,7 @@ func calcPeersRates() []PeerRate {
 			log.Fatal("Could not parse RX/TX values for peers: " + err.Error())
 		}
 		// Kbit/s = Bytes * (8 / 1000) --> 1 Mbit/s = 1000 Kbit/s
-		result = append(result, PeerRate{(rxAfter - rxBefore) / (125 * 1000), (txAfter - txBefore) / (125 * 1000)})
+		result = append(result, PeerRate{(rxAfter - rxBefore) / 125, (txAfter - txBefore) / 125})
 	}
 	return result
 }
@@ -197,8 +208,24 @@ func main() {
 	}()
 	wg.Wait()
 
-	fmt.Println(cpuUsage)
-	fmt.Println(memUsage)
-	fmt.Println(netUsage)
-	fmt.Println(getWGPeers(parseWGDump(), peerRates))
+	hostname, err := os.Hostname()
+	if err != nil {
+		log.Fatal("Could not get hostname: " + err.Error())
+	}
+
+	skel := JSONSkeleton{
+		hostname,
+		cpuUsage,
+		memUsage,
+		netUsage,
+		getWGPeers(parseWGDump(), peerRates),
+	}
+
+	jsonRes, err := json.Marshal(skel)
+	if err != nil {
+		log.Fatal("Could not encode JSON response: " + err.Error())
+	}
+
+	fmt.Println(string(jsonRes))
+
 }
