@@ -28,8 +28,8 @@ type MemUsage struct {
 	RAMUsed   float64 `json:"used"`
 	RAMCached float64 `json:"cached"`
 	RAMFree   float64 `json:"free"`
-	SwapUsed  float64 `json:"swap-used"`
-	SwapFree  float64 `json:"swap-free"`
+	//SwapUsed  float64 `json:"swap-used"`
+	//SwapFree  float64 `json:"swap-free"`
 }
 
 // NetUsage holds network usage
@@ -99,11 +99,11 @@ func getMemUsage() MemUsage {
 	used := float64(mem.Used) / total * 100
 	cached := float64(mem.Cached) / total * 100
 	free := float64(mem.Free) / total * 100
-	swapTotal := float64(mem.SwapTotal)
-	swapUsed := float64(mem.SwapUsed) / swapTotal * 100
-	swapFree := float64(mem.SwapFree) / swapTotal * 100
+	//swapTotal := float64(mem.SwapTotal)
+	//swapUsed := float64(mem.SwapUsed) / swapTotal * 100
+	//swapFree := float64(mem.SwapFree) / swapTotal * 100
 
-	return MemUsage{used, cached, free, swapUsed, swapFree}
+	return MemUsage{used, cached, free} //, swapUsed, swapFree}
 }
 
 // getNetUsage determines the current RX- and TX-data rates of all availble NICs by sampling received
@@ -142,8 +142,8 @@ func parseWGDump() [][]string {
 
 	var peers [][]string
 
-	//out, err := exec.Command("wg", "show", "wg0", "dump").Output()
-	out, err := exec.Command("cat", "wg-mock.txt").Output()
+	out, err := exec.Command("wg", "show", "wg0", "dump").Output()
+	//out, err := exec.Command("cat", "wg-mock.txt").Output()
 	if err != nil {
 		log.Fatal("Could not read Wireguard config: " + err.Error())
 		return peers
@@ -245,6 +245,10 @@ func main() {
 		log.Fatal("Could not encode JSON response: " + err.Error())
 	}
 
+	fmt.Println("HTTP/1.1 200 OK")
+	fmt.Println("Content-Type: application/json; charset=utf-8")
+	fmt.Println("Content-Length: " + strconv.Itoa(len(jsonRes)))
+	fmt.Println("")
 	fmt.Println(string(jsonRes))
 
 }
