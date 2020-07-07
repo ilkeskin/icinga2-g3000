@@ -62,17 +62,20 @@ type JSONSkeleton struct {
 	Wireguard []WGPeer   `json:"wireguard"`
 }
 
+// getCPUUsage reads the change in the "user"-, "system"- and "idle"-values read from /proc/stats over 1 sec.
+// The values are returned as a percentage of the total CPU usage.
+// If an error occurs while reading those values from the os, an empty object is returned.
 func getCPUUsage() CPUUsage {
 	before, err := cpu.Get()
 	if err != nil {
 		log.Fatal("Could not read CPU stats: " + err.Error())
-		return CPUUsage{0.0, 0.0, 0.0}
+		return CPUUsage{}
 	}
 	time.Sleep(time.Duration(1) * time.Second)
 	after, err := cpu.Get()
 	if err != nil {
 		log.Fatal("Could not read CPU stats: " + err.Error())
-		return CPUUsage{0.0, 0.0, 0.0}
+		return CPUUsage{}
 	}
 	total := float64(after.Total - before.Total)
 	user := float64(after.User-before.User) / total * 100
@@ -82,11 +85,14 @@ func getCPUUsage() CPUUsage {
 	return CPUUsage{user, sys, idle}
 }
 
+// getCPUUsage reads current memory consumption (used, cached, free, swap) of the os from /proc/meminfo.
+// The values are returned as a percentage of the total available memory.
+// If an error occurs while reading those values from the os, an empty object is returned.
 func getMemUsage() MemUsage {
 	mem, err := memory.Get()
 	if err != nil {
 		log.Fatal("Could not read memory stats: " + err.Error())
-		return MemUsage{0, 0, 0, 0, 0}
+		return MemUsage{}
 	}
 
 	total := float64(mem.Total)
@@ -100,6 +106,9 @@ func getMemUsage() MemUsage {
 	return MemUsage{used, cached, free, swapUsed, swapFree}
 }
 
+// getNetUsage determines the current RX- and TX-data rates of all availble NICs by sampling received
+// and transmitted Bytes over the timespan of 1 sec. Data rates are return as Kbit per second.
+// If an error occurs while reading those values from the os, an empty array of objects is returned.
 func getNetUsage() []NetUsage {
 	before, err := network.Get()
 	if err != nil {
@@ -116,7 +125,7 @@ func getNetUsage() []NetUsage {
 	var result []NetUsage
 
 	for i := 0; i < len(before); i++ {
-		// Kbit/s = Bytes * (8 / 1000) --> 1 Mbit/s = 1000 Kbit/s
+		// Kbit/s = Bytes * (8 / 1000)
 		rxKbps := float64(after[i].RxBytes-before[i].RxBytes) / 125
 		txKbps := float64(after[i].TxBytes-before[i].TxBytes) / 125
 
@@ -126,17 +135,22 @@ func getNetUsage() []NetUsage {
 	return result
 }
 
+// parseWGDump parses Wireguard peer information produced by the "wg show wg0 dump" command.
+// Interface information is skipped (first line). In case of an error while command exuction
+// an empty array of string-arrays is returned.
 func parseWGDump() [][]string {
+
+	var peers [][]string
 
 	//out, err := exec.Command("wg", "show", "wg0", "dump").Output()
 	out, err := exec.Command("cat", "wg-mock.txt").Output()
 	if err != nil {
 		log.Fatal("Could not read Wireguard config: " + err.Error())
+		return peers
 	}
 
 	lines := s.Split(s.TrimSpace(string(out)), "\n")[1:]
 
-	var peers [][]string
 	for i := 0; i < len(lines); i++ {
 		peers = append(peers, s.Split(lines[i], "\t"))
 	}
@@ -144,6 +158,8 @@ func parseWGDump() [][]string {
 	return peers
 }
 
+// calcPeersRates calculates RX- and TX-date rates for every configured Wireguard peer,
+// by sampling the change in received and transmitted Bytes over the timespan of 1 sec.
 func calcPeersRates() []PeerRate {
 
 	before := parseWGDump()
@@ -159,12 +175,15 @@ func calcPeersRates() []PeerRate {
 		if err != nil {
 			log.Fatal("Could not parse RX/TX values for peers: " + err.Error())
 		}
-		// Kbit/s = Bytes * (8 / 1000) --> 1 Mbit/s = 1000 Kbit/s
+		// Kbit/s = Bytes * (8 / 1000)
 		result = append(result, PeerRate{(rxAfter - rxBefore) / 125, (txAfter - txBefore) / 125})
 	}
 	return result
 }
 
+// getWGPeers return all configured Wireguard peers as an array of Peer objects, each including
+// its internal and external IP address, the epoch timestamp of its last succesful handshake with
+// the gateway as well as its data rates.
 func getWGPeers(peers [][]string, rates []PeerRate) []WGPeer {
 	var result []WGPeer
 	for i := 0; i < len(peers); i++ {
