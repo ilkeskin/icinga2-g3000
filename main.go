@@ -85,7 +85,7 @@ func getCPUUsage() CPUUsage {
 	return CPUUsage{user, sys, idle}
 }
 
-// getCPUUsage reads current memory consumption (used, cached, free, swap) of the os from /proc/meminfo.
+// getMemUsage reads current memory consumption (used, cached, free, swap) of the os from /proc/meminfo.
 // The values are returned as a percentage of the total available memory.
 // If an error occurs while reading those values from the os, an empty object is returned.
 func getMemUsage() MemUsage {
