@@ -25,24 +25,24 @@ type CPUUsage struct {
 
 // MemUsage holds memory usage
 type MemUsage struct {
-	RAMUsed   float64 `json:"used"`
-	RAMCached float64 `json:"cached"`
-	RAMFree   float64 `json:"free"`
+	Used   float64 `json:"used"`
+	Cached float64 `json:"cached"`
+	Free   float64 `json:"free"`
 	//SwapUsed  float64 `json:"swap-used"`
 	//SwapFree  float64 `json:"swap-free"`
 }
 
 // NetUsage holds network usage
 type NetUsage struct {
-	Name   string  `json:"device"`
-	RxKbps float64 `json:"rx"`
-	TxKbps float64 `json:"tx"`
+	Name string  `json:"device"`
+	Rx   float64 `json:"rx"`
+	Tx   float64 `json:"tx"`
 }
 
 // PeerRate holds Wireguard peers date rates
 type PeerRate struct {
-	RxKbps float64 `json:"rx"`
-	TxKbps float64 `json:"tx"`
+	Rx float64 `json:"rx"`
+	Tx float64 `json:"tx"`
 }
 
 // WGPeer holds wireguard peer information
@@ -246,6 +246,6 @@ func main() {
 	fmt.Println("Content-Type: application/json; charset=utf-8")
 	fmt.Println("Content-Length: " + strconv.Itoa(len(jsonRes)))
 	fmt.Println("")
-	fmt.Println(string(jsonRes))
+	fmt.Print(string(jsonRes))
 
 }
