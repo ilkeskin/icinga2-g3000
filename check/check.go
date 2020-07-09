@@ -6,7 +6,10 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
-	"strconv"
+	s "strconv"
+	"strings"
+
+	"github.com/fatih/structs"
 )
 
 // CPUUsage holds CPU usage
@@ -18,24 +21,24 @@ type CPUUsage struct {
 
 // MemUsage holds memory usage
 type MemUsage struct {
-	RAMUsed   float64 `json:"used"`
-	RAMCached float64 `json:"cached"`
-	RAMFree   float64 `json:"free"`
+	Used   float64 `json:"used"`
+	Cached float64 `json:"cached"`
+	Free   float64 `json:"free"`
 	//SwapUsed  float64 `json:"swap-used"`
 	//SwapFree  float64 `json:"swap-free"`
 }
 
 // NetUsage holds network usage
 type NetUsage struct {
-	Name   string  `json:"device"`
-	RxKbps float64 `json:"rx"`
-	TxKbps float64 `json:"tx"`
+	Name string  `json:"device"`
+	Rx   float64 `json:"rx"`
+	Tx   float64 `json:"tx"`
 }
 
 // PeerRate holds Wireguard peers date rates
 type PeerRate struct {
-	RxKbps float64 `json:"rx"`
-	TxKbps float64 `json:"tx"`
+	Rx float64 `json:"rx"`
+	Tx float64 `json:"tx"`
 }
 
 // WGPeer holds wireguard peer information
@@ -55,8 +58,8 @@ type JSONSkeleton struct {
 	Wireguard []WGPeer   `json:"wireguard"`
 }
 
-func getJSON(host string, port int) JSONSkeleton {
-	resp, err := http.Get("http://" + host + ":" + strconv.Itoa(port))
+func getJSON(host string, port int, path string) JSONSkeleton {
+	resp, err := http.Get("http://" + host + ":" + s.Itoa(port) + path)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -70,13 +73,55 @@ func getJSON(host string, port int) JSONSkeleton {
 	return skel
 }
 
-func getValueByKey(key string) string {
+func getCPUUsage(data JSONSkeleton) string {
+	m := structs.Map(data.CPU)
+	var result string
+	for k, v := range m {
+		result += fmt.Sprintf("'%s'=%s%% ", strings.ToLower(k), s.FormatFloat(v.(float64), 'f', 2, 64))
+	}
+	return strings.TrimSpace(result)
+}
 
-	return ""
+func getMemUsage(data JSONSkeleton) string {
+	m := structs.Map(data.Memory)
+	var result string
+	for k, v := range m {
+		result += fmt.Sprintf("'%s'=%s%% ", strings.ToLower(k), s.FormatFloat(v.(float64), 'f', 2, 64))
+	}
+	return strings.TrimSpace(result)
+}
+
+func getNICDownstream(data JSONSkeleton, nicname string) string {
+
+	var m map[string]interface{}
+	for i := range data.Network {
+		if data.Network[i].Name == nicname {
+			m = structs.Map(data.Network[i])
+		}
+	}
+
+	return fmt.Sprintf("'%s'=%skbps ", strings.ToLower(m["Name"].(string)), s.FormatFloat(m["Rx"].(float64), 'f', 2, 64))
+}
+
+func getNICUpstream(data JSONSkeleton, nicname string) string {
+
+	var m map[string]interface{}
+	for i := range data.Network {
+		if data.Network[i].Name == nicname {
+			m = structs.Map(data.Network[i])
+		}
+	}
+
+	return fmt.Sprintf("'%s'=%skbps ", strings.ToLower(m["Name"].(string)), s.FormatFloat(m["Tx"].(float64), 'f', 2, 64))
 }
 
 func main() {
 
-	fmt.Println(getJSON("192.168.25.9", 5665))
+	data := getJSON("127.0.0.1", 8888, "/test.json")
+
+	fmt.Println(getCPUUsage(data))
+	fmt.Println(getMemUsage(data))
+	fmt.Println(getNICDownstream(data, "eth1"))
+	fmt.Println(getNICUpstream(data, "eth1"))
 
 }
