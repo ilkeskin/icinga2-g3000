@@ -7,7 +7,6 @@ Icinga2 agent to monitor TDT AG G3000 gateways written in Go.
 * 0.1 -  Initial Release
 
 ##  License
-Copyright 2014 Hatena Co., Ltd.
 
 Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with the License. You may obtain a copy of the License at
 
