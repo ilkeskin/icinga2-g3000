@@ -8,6 +8,7 @@ import (
 	"net/http"
 	s "strconv"
 	"strings"
+	"time"
 
 	"github.com/fatih/structs"
 )
@@ -58,7 +59,7 @@ type JSONSkeleton struct {
 	Wireguard []WGPeer   `json:"wireguard"`
 }
 
-func getJSON(host string, port int, path string) JSONSkeleton {
+func getData(host string, port int, path string) JSONSkeleton {
 	resp, err := http.Get("http://" + host + ":" + s.Itoa(port) + path)
 	if err != nil {
 		log.Fatal(err)
@@ -77,7 +78,9 @@ func getCPUUsage(data JSONSkeleton) string {
 	m := structs.Map(data.CPU)
 	var result string
 	for k, v := range m {
-		result += fmt.Sprintf("'%s'=%s%% ", strings.ToLower(k), s.FormatFloat(v.(float64), 'f', 2, 64))
+		result += fmt.Sprintf("'%s'=%s%% ",
+			strings.ToLower(k),
+			s.FormatFloat(v.(float64), 'f', 2, 64))
 	}
 	return strings.TrimSpace(result)
 }
@@ -86,13 +89,14 @@ func getMemUsage(data JSONSkeleton) string {
 	m := structs.Map(data.Memory)
 	var result string
 	for k, v := range m {
-		result += fmt.Sprintf("'%s'=%s%% ", strings.ToLower(k), s.FormatFloat(v.(float64), 'f', 2, 64))
+		result += fmt.Sprintf("'%s'=%s%% ",
+			strings.ToLower(k),
+			s.FormatFloat(v.(float64), 'f', 2, 64))
 	}
 	return strings.TrimSpace(result)
 }
 
-func getNICDownstream(data JSONSkeleton, nicname string) string {
-
+func getNICUsage(data JSONSkeleton, nicname string) string {
 	var m map[string]interface{}
 	for i := range data.Network {
 		if data.Network[i].Name == nicname {
@@ -100,28 +104,43 @@ func getNICDownstream(data JSONSkeleton, nicname string) string {
 		}
 	}
 
-	return fmt.Sprintf("'%s'=%skbps ", strings.ToLower(m["Name"].(string)), s.FormatFloat(m["Rx"].(float64), 'f', 2, 64))
+	return fmt.Sprintf("'down'=%skbps 'up'=%skbps",
+		s.FormatFloat(m["Rx"].(float64), 'f', 2, 64),
+		s.FormatFloat(m["Tx"].(float64), 'f', 2, 64))
 }
 
-func getNICUpstream(data JSONSkeleton, nicname string) string {
-
-	var m map[string]interface{}
-	for i := range data.Network {
-		if data.Network[i].Name == nicname {
-			m = structs.Map(data.Network[i])
+func getPeerSecsSinceHS(data JSONSkeleton, peerIndex int64) string {
+	for i := range data.Wireguard {
+		ip := strings.Split(data.Wireguard[i].IntIPAddr, "/")
+		ip = strings.Split(ip[0], ".")
+		idx, _ := s.ParseInt(ip[len(ip)-1], 10, 8)
+		if idx == peerIndex {
+			return fmt.Sprintf("'lasths'=%ds", time.Now().Unix()-data.Wireguard[i].LastHS)
 		}
 	}
+	return "Error"
+}
 
-	return fmt.Sprintf("'%s'=%skbps ", strings.ToLower(m["Name"].(string)), s.FormatFloat(m["Tx"].(float64), 'f', 2, 64))
+func getPeerUsage(data JSONSkeleton, peerIndex int64) string {
+	for i := range data.Wireguard {
+		ip := strings.Split(data.Wireguard[i].IntIPAddr, "/")
+		ip = strings.Split(ip[0], ".")
+		idx, _ := s.ParseInt(ip[len(ip)-1], 10, 8)
+		if idx == peerIndex {
+			return fmt.Sprintf("'down'=%.2fkbps 'up'=%.2fkbps",
+				data.Wireguard[i].PeerRate.Rx,
+				data.Wireguard[i].PeerRate.Tx)
+		}
+	}
+	return "Error"
 }
 
 func main() {
-
-	data := getJSON("127.0.0.1", 8888, "/test.json")
+	data := getData("127.0.0.1", 8888, "/test.json")
 
 	fmt.Println(getCPUUsage(data))
 	fmt.Println(getMemUsage(data))
-	fmt.Println(getNICDownstream(data, "eth1"))
-	fmt.Println(getNICUpstream(data, "eth1"))
-
+	fmt.Println(getNICUsage(data, "eth1"))
+	fmt.Println(getPeerSecsSinceHS(data, 9))
+	fmt.Println(getPeerUsage(data, 12))
 }
