@@ -1,5 +1,7 @@
 package lib
 
+import "time"
+
 // CPUUsage holds CPU usage
 type CPUUsage struct {
 	User   float64 `json:"user"`
@@ -39,9 +41,10 @@ type WGPeer struct {
 
 // JSONSkeleton defines the structure of the JSON response
 type JSONSkeleton struct {
-	Hostname  string     `json:"hostname"`
-	CPU       CPUUsage   `json:"cpu"`
-	Memory    MemUsage   `json:"memory"`
-	Network   []NetUsage `json:"network"`
-	Wireguard []WGPeer   `json:"wireguard"`
+	Hostname  string        `json:"hostname"`
+	Uptime    time.Duration `json:"uptime"`
+	CPU       CPUUsage      `json:"cpu"`
+	Memory    MemUsage      `json:"memory"`
+	Network   []NetUsage    `json:"network"`
+	Wireguard []WGPeer      `json:"wireguard"`
 }
