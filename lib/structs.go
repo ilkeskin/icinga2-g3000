@@ -1,4 +1,4 @@
-package main
+package lib
 
 // CPUUsage holds CPU usage
 type CPUUsage struct {
@@ -44,8 +44,4 @@ type JSONSkeleton struct {
 	Memory    MemUsage   `json:"memory"`
 	Network   []NetUsage `json:"network"`
 	Wireguard []WGPeer   `json:"wireguard"`
-}
-
-func main() {
-
 }

@@ -11,9 +11,10 @@ import (
 	"time"
 
 	"github.com/fatih/structs"
+	"github.com/ilkeskin/icinga-g3000/lib"
 )
 
-func getData(host string, port int, path string) JSONSkeleton {
+func getData(host string, port int, path string) lib.JSONSkeleton {
 	resp, err := http.Get("http://" + host + ":" + s.Itoa(port) + path)
 	if err != nil {
 		log.Fatal(err)
@@ -22,13 +23,13 @@ func getData(host string, port int, path string) JSONSkeleton {
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 
-	var skel JSONSkeleton
+	var skel lib.JSONSkeleton
 	json.Unmarshal(body, &skel)
 
 	return skel
 }
 
-func getCPUUsage(data JSONSkeleton) string {
+func getCPUUsage(data lib.JSONSkeleton) string {
 	m := structs.Map(data.CPU)
 	var result string
 	for k, v := range m {
@@ -39,7 +40,7 @@ func getCPUUsage(data JSONSkeleton) string {
 	return strings.TrimSpace(result)
 }
 
-func getMemUsage(data JSONSkeleton) string {
+func getMemUsage(data lib.JSONSkeleton) string {
 	m := structs.Map(data.Memory)
 	var result string
 	for k, v := range m {
@@ -50,7 +51,7 @@ func getMemUsage(data JSONSkeleton) string {
 	return strings.TrimSpace(result)
 }
 
-func getNICUsage(data JSONSkeleton, nicname string) string {
+func getNICUsage(data lib.JSONSkeleton, nicname string) string {
 	var m map[string]interface{}
 	for i := range data.Network {
 		if data.Network[i].Name == nicname {
@@ -63,7 +64,7 @@ func getNICUsage(data JSONSkeleton, nicname string) string {
 		s.FormatFloat(m["Tx"].(float64), 'f', 2, 64))
 }
 
-func getPeerSecsSinceHS(data JSONSkeleton, peerIndex int64) string {
+func getPeerSecsSinceHS(data lib.JSONSkeleton, peerIndex int64) string {
 	for i := range data.Wireguard {
 		ip := strings.Split(data.Wireguard[i].IntIPAddr, "/")
 		ip = strings.Split(ip[0], ".")
@@ -75,7 +76,7 @@ func getPeerSecsSinceHS(data JSONSkeleton, peerIndex int64) string {
 	return "Error"
 }
 
-func getPeerUsage(data JSONSkeleton, peerIndex int64) string {
+func getPeerUsage(data lib.JSONSkeleton, peerIndex int64) string {
 	for i := range data.Wireguard {
 		ip := strings.Split(data.Wireguard[i].IntIPAddr, "/")
 		ip = strings.Split(ip[0], ".")

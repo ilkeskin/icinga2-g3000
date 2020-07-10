@@ -11,6 +11,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ilkeskin/icinga-g3000/lib"
+
 	"github.com/mackerelio/go-osstat/cpu"
 	"github.com/mackerelio/go-osstat/memory"
 	"github.com/mackerelio/go-osstat/network"
@@ -19,34 +21,34 @@ import (
 // getCPUUsage reads the change in the "user"-, "system"- and "idle"-values read from /proc/stats over 1 sec.
 // The values are returned as a percentage of the total CPU usage.
 // If an error occurs while reading those values from the os, an empty object is returned.
-func getCPUUsage() CPUUsage {
+func getCPUUsage() lib.CPUUsage {
 	before, err := cpu.Get()
 	if err != nil {
 		log.Fatal("Could not read CPU stats: " + err.Error())
-		return CPUUsage{}
+		return lib.CPUUsage{}
 	}
 	time.Sleep(time.Duration(1) * time.Second)
 	after, err := cpu.Get()
 	if err != nil {
 		log.Fatal("Could not read CPU stats: " + err.Error())
-		return CPUUsage{}
+		return lib.CPUUsage{}
 	}
 	total := float64(after.Total - before.Total)
 	user := float64(after.User-before.User) / total * 100
 	sys := float64(after.System-before.System) / total * 100
 	idle := float64(after.Idle-before.Idle) / total * 100
 
-	return CPUUsage{user, sys, idle}
+	return lib.CPUUsage{user, sys, idle}
 }
 
 // getMemUsage reads current memory consumption (used, cached, free, swap) of the os from /proc/meminfo.
 // The values are returned as a percentage of the total available memory.
 // If an error occurs while reading those values from the os, an empty object is returned.
-func getMemUsage() MemUsage {
+func getMemUsage() lib.MemUsage {
 	mem, err := memory.Get()
 	if err != nil {
 		log.Fatal("Could not read memory stats: " + err.Error())
-		return MemUsage{}
+		return lib.MemUsage{}
 	}
 
 	total := float64(mem.Total)
@@ -57,33 +59,33 @@ func getMemUsage() MemUsage {
 	//swapUsed := float64(mem.SwapUsed) / swapTotal * 100
 	//swapFree := float64(mem.SwapFree) / swapTotal * 100
 
-	return MemUsage{used, cached, free} //, swapUsed, swapFree}
+	return lib.MemUsage{used, cached, free} //, swapUsed, swapFree}
 }
 
 // getNetUsage determines the current RX- and TX-data rates of all availble NICs by sampling received
 // and transmitted Bytes over the timespan of 1 sec. Data rates are return as Kbit per second.
 // If an error occurs while reading those values from the os, an empty array of objects is returned.
-func getNetUsage() []NetUsage {
+func getNetUsage() []lib.NetUsage {
 	before, err := network.Get()
 	if err != nil {
 		log.Fatal("Could not read network stats: " + err.Error())
-		return []NetUsage{}
+		return []lib.NetUsage{}
 	}
 	time.Sleep(time.Duration(1) * time.Second)
 	after, err := network.Get()
 	if err != nil {
 		log.Fatal("Could not read network stats: " + err.Error())
-		return []NetUsage{}
+		return []lib.NetUsage{}
 	}
 
-	var result []NetUsage
+	var result []lib.NetUsage
 
 	for i := 0; i < len(before); i++ {
 		// Kbit/s = Bytes * (8 / 1000)
 		rxKbps := float64(after[i].RxBytes-before[i].RxBytes) / 125
 		txKbps := float64(after[i].TxBytes-before[i].TxBytes) / 125
 
-		result = append(result, NetUsage{before[i].Name, rxKbps, txKbps})
+		result = append(result, lib.NetUsage{before[i].Name, rxKbps, txKbps})
 	}
 
 	return result
@@ -114,13 +116,13 @@ func parseWGDump() [][]string {
 
 // calcPeersRates calculates RX- and TX-date rates for every configured Wireguard peer,
 // by sampling the change in received and transmitted Bytes over the timespan of 1 sec.
-func calcPeersRates() []PeerRate {
+func calcPeersRates() []lib.PeerRate {
 
 	before := parseWGDump()
 	time.Sleep(time.Duration(1) * time.Second)
 	after := parseWGDump()
 
-	var result []PeerRate
+	var result []lib.PeerRate
 	for i := 0; i < len(before); i++ {
 		rxBefore, err := strconv.ParseFloat(before[i][5], 64)
 		rxAfter, err := strconv.ParseFloat(after[i][5], 64)
@@ -130,7 +132,7 @@ func calcPeersRates() []PeerRate {
 			log.Fatal("Could not parse RX/TX values for peers: " + err.Error())
 		}
 		// Kbit/s = Bytes * (8 / 1000)
-		result = append(result, PeerRate{(rxAfter - rxBefore) / 125, (txAfter - txBefore) / 125})
+		result = append(result, lib.PeerRate{(rxAfter - rxBefore) / 125, (txAfter - txBefore) / 125})
 	}
 	return result
 }
@@ -138,8 +140,8 @@ func calcPeersRates() []PeerRate {
 // getWGPeers return all configured Wireguard peers as an array of Peer objects, each including
 // its internal and external IP address, the epoch timestamp of its last succesful handshake with
 // the gateway as well as its data rates.
-func getWGPeers(peers [][]string, rates []PeerRate) []WGPeer {
-	var result []WGPeer
+func getWGPeers(peers [][]string, rates []lib.PeerRate) []lib.WGPeer {
+	var result []lib.WGPeer
 	for i := 0; i < len(peers); i++ {
 		lastHS, err := strconv.ParseInt(peers[i][4], 10, 64)
 		if err != nil {
@@ -147,7 +149,7 @@ func getWGPeers(peers [][]string, rates []PeerRate) []WGPeer {
 		}
 
 		// IntIPAddr ExtIPAddr LastHS PeerRate
-		result = append(result, WGPeer{peers[i][3], peers[i][2], lastHS, rates[i]})
+		result = append(result, lib.WGPeer{peers[i][3], peers[i][2], lastHS, rates[i]})
 	}
 
 	return result
@@ -155,10 +157,10 @@ func getWGPeers(peers [][]string, rates []PeerRate) []WGPeer {
 
 func main() {
 	var wg sync.WaitGroup
-	var cpuUsage CPUUsage
-	var memUsage MemUsage
-	var netUsage []NetUsage
-	var peerRates []PeerRate
+	var cpuUsage lib.CPUUsage
+	var memUsage lib.MemUsage
+	var netUsage []lib.NetUsage
+	var peerRates []lib.PeerRate
 	wg.Add(4)
 	go func() {
 		defer wg.Done()
@@ -186,13 +188,7 @@ func main() {
 		log.Fatal("Could not get hostname: " + err.Error())
 	}
 
-	skel := JSONSkeleton{
-		hostname,
-		cpuUsage,
-		memUsage,
-		netUsage,
-		getWGPeers(parseWGDump(), peerRates),
-	}
+	skel := lib.JSONSkeleton{hostname, cpuUsage, memUsage, netUsage, getWGPeers(parseWGDump(), peerRates)}
 
 	jsonRes, err := json.Marshal(skel)
 
