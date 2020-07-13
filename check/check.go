@@ -1,137 +1,111 @@
 package main
 
 import (
-	"encoding/json"
-	"errors"
 	"fmt"
-	"io/ioutil"
-	"net/http"
-	s "strconv"
-	"strings"
-	"time"
+	"os"
 
-	"github.com/fatih/structs"
-	"github.com/ilkeskin/icinga-g3000/lib"
+	"github.com/urfave/cli/v2"
 )
 
-func getData(host string, port int, path string) (lib.JSONSkeleton, error) {
-	var skel lib.JSONSkeleton
+const version = "0.0.1"
 
-	resp, err := http.Get("http://" + host + ":" + s.Itoa(port) + path)
-	if err != nil {
-		return skel, err
-	}
+const (
+	exitOk       = 0
+	exitWarning  = 1
+	exitCritical = 2
+	exitUnknown  = 3
+)
 
-	defer resp.Body.Close()
-	body, err := ioutil.ReadAll(resp.Body)
+// GlobalReturnCode holds last issued exit code
+var GlobalReturnCode = exitUnknown
 
-	json.Unmarshal(body, &skel)
-
-	return skel, nil
-}
-
-func getCPUUsage(data lib.JSONSkeleton) (string, error) {
-	var result string
-
-	if !structs.IsStruct(data.CPU) {
-		return result, errors.New("data.CPU is not a struct, empty response?")
-	}
-	m := structs.Map(data.CPU)
-
-	for k, v := range m {
-		result += fmt.Sprintf("'%s'=%s%% ",
-			strings.ToLower(k),
-			s.FormatFloat(v.(float64), 'f', 2, 64))
-	}
-	return strings.TrimSpace(result), nil
-}
-
-func getMemUsage(data lib.JSONSkeleton) (string, error) {
-	var result string
-
-	if !structs.IsStruct(data.Memory) {
-		return result, errors.New("data.Memory is not a struct, empty response?")
-	}
-	m := structs.Map(data.Memory)
-
-	for k, v := range m {
-		result += fmt.Sprintf("'%s'=%s%% ",
-			strings.ToLower(k),
-			s.FormatFloat(v.(float64), 'f', 2, 64))
-	}
-	return strings.TrimSpace(result), nil
-}
-
-func getNICUsage(data lib.JSONSkeleton, nicname string) (string, error) {
-	var result string
-
-	if len(data.Network) == 0 {
-		return result, errors.New("data.Network holds no NICs, empty response?")
-	}
-
-	var m map[string]interface{}
-	for i := range data.Network {
-		if data.Network[i].Name == nicname {
-			m = structs.Map(data.Network[i])
-			result = fmt.Sprintf("'down'=%skbps 'up'=%skbps",
-				s.FormatFloat(m["Rx"].(float64), 'f', 2, 64),
-				s.FormatFloat(m["Tx"].(float64), 'f', 2, 64))
-		}
-	}
-
-	return result, nil
-}
-
-func getPeerSecsSinceHS(data lib.JSONSkeleton, peerIndex int64) (string, error) {
-	var result string
-
-	for i := range data.Wireguard {
-		ip := strings.Split(data.Wireguard[i].IntIPAddr, "/")
-		ip = strings.Split(ip[0], ".")
-
-		idx, err := s.ParseInt(ip[len(ip)-1], 10, 8)
-		if err != nil {
-			return result, err
-		}
-
-		if idx == peerIndex {
-			result = fmt.Sprintf("'lasths'=%ds", time.Now().Unix()-data.Wireguard[i].LastHS)
-			return result, nil
-		}
-	}
-	return result, errors.New("Could not find peer with index " + s.FormatInt(peerIndex, 10) + ",empty response?")
-}
-
-func getPeerUsage(data lib.JSONSkeleton, peerIndex int64) (string, error) {
-	var result string
-
-	for i := range data.Wireguard {
-		ip := strings.Split(data.Wireguard[i].IntIPAddr, "/")
-		ip = strings.Split(ip[0], ".")
-
-		idx, err := s.ParseInt(ip[len(ip)-1], 10, 8)
-		if err != nil {
-			return result, err
-		}
-
-		if idx == peerIndex {
-			result = fmt.Sprintf("'down'=%.2fkbps 'up'=%.2fkbps", data.Wireguard[i].PeerRate.Rx, data.Wireguard[i].PeerRate.Tx)
-			return result, nil
-		}
-	}
-	return result, errors.New("Could not find peer with index " + s.FormatInt(peerIndex, 10) + ",empty response?")
+func printVersion() {
+	fmt.Println("check_fritz v" + version)
+	GlobalReturnCode = exitOk
 }
 
 func main() {
-	data, err := getData("127.0.0.1", 8888, "/test.json")
-
-	fmt.Println(getCPUUsage(data))
-	fmt.Println(getMemUsage(data))
-	fmt.Println(getNICUsage(data, "eth1"))
-	fmt.Println(getPeerSecsSinceHS(data, 9))
-	fmt.Println(getPeerUsage(data, 12))
-
-	if err != nil {
-		fmt.Println(err)
+	app := &cli.App{
+		Name:    "check_g3000",
+		Usage:   "Check plugin to monitor a TDT G3000 gateway",
+		Version: version,
+		Commands: []*cli.Command{
+			&cli.Command{
+				Name:        "uptime",
+				Aliases:     []string{"u"},
+				Usage:       "get device uptime (in s)",
+				Description: "retrieves the device uptime since last (re)boot",
+			},
+			&cli.Command{
+				Name:        "cpu",
+				Aliases:     []string{"c"},
+				Usage:       "get CPU usage (in %)",
+				Description: "retrieves the current CPU usage as a percentage of total cpu time split between user, system and idle",
+			},
+			&cli.Command{
+				Name:        "mem",
+				Aliases:     []string{"m"},
+				Usage:       "get memory usage (in %)",
+				Description: "retrieves the current Memory usage as a percentage of total memory available split between used, cached and free RAM",
+			},
+			&cli.Command{
+				Name:        "net",
+				Aliases:     []string{"n"},
+				Usage:       "get network usage (in kbps) of a NIC",
+				Description: "",
+			},
+		},
+		Flags: []cli.Flag{
+			&cli.StringFlag{
+				Name:        "hostname",
+				Aliases:     []string{"H"},
+				Value:       "192.168.25.9",
+				DefaultText: "192.168.25.9",
+				Usage:       "Specifies the hostname or IP-address to query.",
+			},
+			&cli.IntFlag{
+				Name:        "port",
+				Aliases:     []string{"p"},
+				Value:       5665,
+				DefaultText: "5665",
+				Usage:       "Specifies the port to query.",
+			},
+			&cli.StringFlag{
+				Name:        "method",
+				Aliases:     []string{"m"},
+				Value:       "cpu-usage",
+				DefaultText: "cpu-usage",
+				Usage:       "Specifies the check method that should be used.",
+			},
+			&cli.IntFlag{
+				Name:        "timeout",
+				Aliases:     []string{"t"},
+				Value:       90,
+				DefaultText: "90",
+				Usage:       "Specifies the timeout for requests.",
+			},
+			&cli.Float64Flag{
+				Name:    "warning",
+				Aliases: []string{"w"},
+				Usage:   "Specifies the warning threshold.",
+			},
+			&cli.Float64Flag{
+				Name:    "critical",
+				Aliases: []string{"c"},
+				Usage:   "Specifies the critical threshold.",
+			},
+			&cli.BoolFlag{
+				Name:    "verbose",
+				Aliases: []string{"v"},
+				Usage:   "Prints additional information for debugging.",
+			},
+		},
 	}
+
+	cli.VersionFlag = &cli.BoolFlag{
+		Name: "version", Aliases: []string{"V"},
+		Usage: "Prints the plugin version.",
+	}
+
+	app.Run(os.Args)
 }
