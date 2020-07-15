@@ -20,7 +20,7 @@ const (
 var GlobalReturnCode = exitUnknown
 
 func printVersion() {
-	fmt.Println("check_fritz v" + version)
+	fmt.Println("check_g3000 v" + version)
 	GlobalReturnCode = exitOk
 }
 

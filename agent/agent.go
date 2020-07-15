@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -117,8 +118,11 @@ func parseWGDump() ([][]string, error) {
 	out, err := exec.Command("wg", "show", "wg0", "dump").Output()
 	//out, err := exec.Command("cat", "wg-mock.txt").Output()
 	if err != nil {
-		return result, err
+		return result, fmt.Errorf("Executing \"wg show wg0 dump\" failed: %w", err)
+	} else if len(out) == 0 {
+		return result, errors.New("Executing \"wg show wg0 dump\" returned empty response")
 	}
+
 	lines := s.Split(s.TrimSpace(string(out)), "\n")[1:]
 	for i := 0; i < len(lines); i++ {
 		result = append(result, s.Split(lines[i], "\t"))
@@ -157,15 +161,21 @@ func calcPeersRates() ([]lib.PeerRate, error) {
 }
 
 // getWGPeers return all configured Wireguard peers as an array of Peer objects, each including
-// its internal and external IP address, the epoch timestamp of its last succesful handshake with
+// its internal and external IP address, the epoch timestamp of its last successful handshake with
 // the gateway as well as its data rates.
 func getWGPeers(peers [][]string, rates []lib.PeerRate) ([]lib.WGPeer, error) {
 	var result []lib.WGPeer
 
+	if len(peers) == 0 {
+		return result, errors.New("Peer dump is empty")
+	} else if len(rates) == 0 {
+		return result, errors.New("Peer dump is empty")
+	}
+
 	for i := 0; i < len(peers); i++ {
 		lastHS, err := strconv.ParseInt(peers[i][4], 10, 64)
 		if err != nil {
-			return result, err
+			return result, fmt.Errorf("Parsing \"latest handshake\"-value for peer %s failed: %w", peers[i][3], err)
 		}
 
 		// IntIPAddr ExtIPAddr LastHS PeerRate
@@ -173,6 +183,30 @@ func getWGPeers(peers [][]string, rates []lib.PeerRate) ([]lib.WGPeer, error) {
 	}
 
 	return result, nil
+}
+
+func sendError(err error) {
+	var resp string
+
+	resp = fmt.Sprintf("{\"Error\": \"%s\"}", err)
+	fmt.Println("HTTP/1.1 500 Internal Server Error")
+	fmt.Println("Content-Type: application/json; charset=utf-8")
+	fmt.Println("Content-Length: " + strconv.Itoa(len(resp)))
+	fmt.Println("")
+	fmt.Print(resp)
+}
+
+func sendResult(skel lib.JSONSkeleton) {
+	json, err := json.Marshal(skel)
+	if err != nil {
+		sendError(err)
+	}
+
+	fmt.Println("HTTP/1.1 200 OK")
+	fmt.Println("Content-Type: application/json; charset=utf-8")
+	fmt.Println("Content-Length: " + strconv.Itoa(len(json)))
+	fmt.Println("")
+	fmt.Print(string(json))
 }
 
 func main() {
@@ -189,26 +223,36 @@ func main() {
 	go func() {
 		defer wg.Done()
 		uptime, err = getUptime()
+		if err != nil {
+		}
 	}()
 
 	go func() {
 		defer wg.Done()
 		cpuUsage, err = getCPUUsage()
+		if err != nil {
+		}
 	}()
 
 	go func() {
 		defer wg.Done()
 		memUsage, err = getMemUsage()
+		if err != nil {
+		}
 	}()
 
 	go func() {
 		defer wg.Done()
 		netUsage, err = getNetUsage()
+		if err != nil {
+		}
 	}()
 
 	go func() {
 		defer wg.Done()
 		peerRates, err = calcPeersRates()
+		if err != nil {
+		}
 	}()
 	wg.Wait()
 
@@ -230,16 +274,8 @@ func main() {
 		CPU:       cpuUsage,
 		Memory:    memUsage,
 		Network:   netUsage,
-		Wireguard: peers}
-
-	jsonRes, err := json.Marshal(skel)
-	if err != nil {
+		Wireguard: peers,
 	}
 
-	fmt.Println("HTTP/1.1 200 OK")
-	fmt.Println("Content-Type: application/json; charset=utf-8")
-	fmt.Println("Content-Length: " + strconv.Itoa(len(jsonRes)))
-	fmt.Println("")
-	fmt.Print(string(jsonRes))
-
+	sendResult(skel)
 }
