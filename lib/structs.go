@@ -39,12 +39,17 @@ type WGPeer struct {
 	PeerRate  PeerRate `json:"data-rates"`
 }
 
-// JSONSkeleton defines the structure of the JSON response
-type JSONSkeleton struct {
+// DataModel defines the structure of the JSON response
+type DataModel struct {
 	Hostname  string        `json:"hostname"`
 	Uptime    time.Duration `json:"uptime"`
 	CPU       CPUUsage      `json:"cpu"`
 	Memory    MemUsage      `json:"memory"`
 	Network   []NetUsage    `json:"network"`
 	Wireguard []WGPeer      `json:"wireguard"`
+}
+
+// ErrorRes defines the structure of the JSON response
+type ErrorModel struct {
+	Error string `json:"error"`
 }

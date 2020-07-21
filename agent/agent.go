@@ -26,7 +26,7 @@ func getUptime() (time.Duration, error) {
 
 	result, err := uptime.Get()
 	if err != nil {
-		return result, err
+		return result, fmt.Errorf("Getting system uptime failed: %w", err)
 	}
 	return result, nil
 }
@@ -39,12 +39,12 @@ func getCPUUsage() (lib.CPUUsage, error) {
 
 	before, err := cpu.Get()
 	if err != nil {
-		return result, err
+		return result, fmt.Errorf("Getting CPU stats failed: %w", err)
 	}
 	time.Sleep(time.Duration(1) * time.Second)
 	after, err := cpu.Get()
 	if err != nil {
-		return result, err
+		return result, fmt.Errorf("Getting CPU stats failed: %w", err)
 	}
 	total := float64(after.Total - before.Total)
 	user := float64(after.User-before.User) / total * 100
@@ -64,7 +64,7 @@ func getMemUsage() (lib.MemUsage, error) {
 
 	mem, err := memory.Get()
 	if err != nil {
-		return result, err
+		return result, fmt.Errorf("Getting memory info failed: %w", err)
 	}
 
 	total := float64(mem.Total)
@@ -87,12 +87,12 @@ func getNetUsage() ([]lib.NetUsage, error) {
 
 	before, err := network.Get()
 	if err != nil {
-		return result, err
+		return result, fmt.Errorf("Getting network stats failed: %w", err)
 	}
 	time.Sleep(time.Duration(1) * time.Second)
 	after, err := network.Get()
 	if err != nil {
-		return result, err
+		return result, fmt.Errorf("Getting network stats failed: %w", err)
 	}
 
 	for i := 0; i < len(before); i++ {
@@ -138,12 +138,12 @@ func calcPeersRates() ([]lib.PeerRate, error) {
 
 	before, err := parseWGDump()
 	if err != nil {
-		return result, err
+		return result, fmt.Errorf("Parsing Wireguard dump failed: %w", err)
 	}
 	time.Sleep(time.Duration(1) * time.Second)
 	after, err := parseWGDump()
 	if err != nil {
-		return result, err
+		return result, fmt.Errorf("Parsing Wireguard dump failed: %w", err)
 	}
 
 	for i := 0; i < len(before); i++ {
@@ -152,7 +152,7 @@ func calcPeersRates() ([]lib.PeerRate, error) {
 		txBefore, err := strconv.ParseFloat(before[i][6], 64)
 		txAfter, err := strconv.ParseFloat(after[i][6], 64)
 		if err != nil {
-			return result, err
+			return result, fmt.Errorf("Parsing float from dump failed for peer with index %d: %w", i, err)
 		}
 		// Kbit/s = Bytes * (8 / 1000)
 		result = append(result, lib.PeerRate{Rx: (rxAfter - rxBefore) / 125, Tx: (txAfter - txBefore) / 125})
@@ -186,27 +186,34 @@ func getWGPeers(peers [][]string, rates []lib.PeerRate) ([]lib.WGPeer, error) {
 }
 
 func sendError(err error) {
-	var resp string
+	resp := lib.ErrorModel{Error: err.Error()}
+	result, err := json.Marshal(resp)
+	if err != nil {
+		sendError(err)
+	}
 
-	resp = fmt.Sprintf("{\"Error\": \"%s\"}", err)
 	fmt.Println("HTTP/1.1 500 Internal Server Error")
 	fmt.Println("Content-Type: application/json; charset=utf-8")
-	fmt.Println("Content-Length: " + strconv.Itoa(len(resp)))
+	fmt.Println("Content-Length: " + strconv.Itoa(len(result)))
 	fmt.Println("")
-	fmt.Print(resp)
+	fmt.Print(string(result))
+
+	os.Exit(1)
 }
 
-func sendResult(skel lib.JSONSkeleton) {
-	json, err := json.Marshal(skel)
+func sendResult(skel lib.DataModel) {
+	result, err := json.Marshal(skel)
 	if err != nil {
 		sendError(err)
 	}
 
 	fmt.Println("HTTP/1.1 200 OK")
 	fmt.Println("Content-Type: application/json; charset=utf-8")
-	fmt.Println("Content-Length: " + strconv.Itoa(len(json)))
+	fmt.Println("Content-Length: " + strconv.Itoa(len(result)))
 	fmt.Println("")
-	fmt.Print(string(json))
+	fmt.Print(string(result))
+
+	os.Exit(0)
 }
 
 func main() {
@@ -224,6 +231,7 @@ func main() {
 		defer wg.Done()
 		uptime, err = getUptime()
 		if err != nil {
+			sendError(err)
 		}
 	}()
 
@@ -231,6 +239,7 @@ func main() {
 		defer wg.Done()
 		cpuUsage, err = getCPUUsage()
 		if err != nil {
+			sendError(err)
 		}
 	}()
 
@@ -238,6 +247,7 @@ func main() {
 		defer wg.Done()
 		memUsage, err = getMemUsage()
 		if err != nil {
+			sendError(err)
 		}
 	}()
 
@@ -245,6 +255,7 @@ func main() {
 		defer wg.Done()
 		netUsage, err = getNetUsage()
 		if err != nil {
+			sendError(err)
 		}
 	}()
 
@@ -252,23 +263,27 @@ func main() {
 		defer wg.Done()
 		peerRates, err = calcPeersRates()
 		if err != nil {
+			sendError(err)
 		}
 	}()
 	wg.Wait()
 
 	hostname, err := os.Hostname()
 	if err != nil {
+		sendError(err)
 	}
 
 	wgDump, err := parseWGDump()
 	if err != nil {
+		sendError(err)
 	}
 
 	peers, err := getWGPeers(wgDump, peerRates)
 	if err != nil {
+		sendError(err)
 	}
 
-	skel := lib.JSONSkeleton{
+	skel := lib.DataModel{
 		Hostname:  hostname,
 		Uptime:    uptime,
 		CPU:       cpuUsage,

@@ -15,8 +15,8 @@ import (
 
 // QueryData issues a HTTP-GET request on a specified host and port and
 // unmarshals the received JSON body into the shared data structure.
-func QueryData(host string, port int, path string) (JSONSkeleton, error) {
-	var skel JSONSkeleton
+func QueryData(host string, port int, path string) (DataModel, error) {
+	var skel DataModel
 
 	resp, err := http.Get("http://" + host + ":" + s.Itoa(port) + path)
 	if err != nil {
@@ -33,7 +33,7 @@ func QueryData(host string, port int, path string) (JSONSkeleton, error) {
 
 // ParseCPUUsage parses the CPU usage related metrics retrieved from the agent
 // into a format that is understood by Icingas API and returns them as a string.
-func ParseCPUUsage(data JSONSkeleton) (string, error) {
+func ParseCPUUsage(data DataModel) (string, error) {
 	var result string
 
 	if !structs.IsStruct(data.CPU) {
@@ -51,7 +51,7 @@ func ParseCPUUsage(data JSONSkeleton) (string, error) {
 
 // ParseMemUsage parses the memory usage related metrics retrieved from the agent
 // into a format that is understood by Icingas API and returns them as a string.
-func ParseMemUsage(data JSONSkeleton) (string, error) {
+func ParseMemUsage(data DataModel) (string, error) {
 	var result string
 
 	if !structs.IsStruct(data.Memory) {
@@ -69,7 +69,7 @@ func ParseMemUsage(data JSONSkeleton) (string, error) {
 
 // ParseNetUsage parses the network usage related metrics of a specified NIC retrieved from the agent
 // into a format that is understood by Icingas API and returns them as a string.
-func ParseNetUsage(data JSONSkeleton, nicname string) (string, error) {
+func ParseNetUsage(data DataModel, nicname string) (string, error) {
 	var result string
 
 	if len(data.Network) == 0 {
@@ -91,7 +91,7 @@ func ParseNetUsage(data JSONSkeleton, nicname string) (string, error) {
 
 // ParsePeer parses the Wireguard related metrics of a specified peer retrieved from the agent
 // into a format that is understood by Icingas API and returns them as a string.
-func ParsePeer(data JSONSkeleton, peerIndex int64) (string, error) {
+func ParsePeer(data DataModel, peerIndex int64) (string, error) {
 	var result string
 
 	for i := range data.Wireguard {
