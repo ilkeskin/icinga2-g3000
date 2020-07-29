@@ -2,6 +2,11 @@ package lib
 
 import "time"
 
+// Uptime holds system uptime
+type Uptime struct {
+	Uptime time.Duration `json:"uptime"`
+}
+
 // CPUUsage holds CPU usage
 type CPUUsage struct {
 	User   float64 `json:"user"`
@@ -39,7 +44,7 @@ type WGPeer struct {
 	PeerRate  PeerRate `json:"data-rates"`
 }
 
-// DataModel defines the structure of the JSON response
+/*// DataModel defines the structure of the JSON response
 type DataModel struct {
 	Hostname  string        `json:"hostname"`
 	Uptime    time.Duration `json:"uptime"`
@@ -47,9 +52,9 @@ type DataModel struct {
 	Memory    MemUsage      `json:"memory"`
 	Network   []NetUsage    `json:"network"`
 	Wireguard []WGPeer      `json:"wireguard"`
-}
+}*/
 
-// ErrorRes defines the structure of the JSON response
+// ErrorModel defines the structure of the JSON response
 type ErrorModel struct {
 	Error string `json:"error"`
 }
