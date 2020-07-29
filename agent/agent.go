@@ -1,25 +1,37 @@
 package main
 
 import (
+	"bufio"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"os"
 	"os/exec"
 	"strconv"
 	s "strings"
-	"sync"
 	"time"
 
+	"github.com/ilkeskin/icinga-g3000/lib"
 	"github.com/mackerelio/go-osstat/cpu"
 	"github.com/mackerelio/go-osstat/memory"
 	"github.com/mackerelio/go-osstat/network"
 	"github.com/mackerelio/go-osstat/uptime"
-
-	"github.com/ilkeskin/icinga-g3000/lib"
 )
 
 // getUptime reads uptime in secs from /proc/uptime and returns it as a time.Duration object.
+// If an error occurs while reading those values from the os, an empty object is returned.
+func getUptime() (lib.Uptime, error) {
+	var result lib.Uptime
+
+	uptime, err := uptime.Get()
+	if err != nil {
+		return result, fmt.Errorf("Getting system uptime failed: %w", err)
+	}
+	return lib.Uptime{uptime}, nil
+}
+
+/*// getUptime reads uptime in secs from /proc/uptime and returns it as a time.Duration object.
 // If an error occurs while reading those values from the os, an empty object is returned.
 func getUptime() (time.Duration, error) {
 	var result time.Duration
@@ -29,7 +41,7 @@ func getUptime() (time.Duration, error) {
 		return result, fmt.Errorf("Getting system uptime failed: %w", err)
 	}
 	return result, nil
-}
+}*/
 
 // getCPUUsage reads the change in the "user"-, "system"- and "idle"-values read from /proc/stats over 1 sec.
 // The values are returned as a percentage of the total CPU usage.
@@ -201,8 +213,8 @@ func sendError(err error) {
 	os.Exit(1)
 }
 
-func sendResult(skel lib.DataModel) {
-	result, err := json.Marshal(skel)
+func sendResult(input interface{}) {
+	result, err := json.Marshal(input)
 	if err != nil {
 		sendError(err)
 	}
@@ -218,13 +230,15 @@ func sendResult(skel lib.DataModel) {
 
 func main() {
 
-	var wg sync.WaitGroup
+	var err error
+
+	/*var wg sync.WaitGroup
 	var uptime time.Duration
 	var cpuUsage lib.CPUUsage
 	var memUsage lib.MemUsage
 	var netUsage []lib.NetUsage
 	var peerRates []lib.PeerRate
-	var err error
+
 
 	wg.Add(5)
 	go func() {
@@ -292,5 +306,61 @@ func main() {
 		Wireguard: peers,
 	}
 
-	sendResult(skel)
+	sendResult(skel)*/
+
+	rd := bufio.NewReader(os.Stdin)
+	buffer, _, err := rd.ReadLine()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	line := string(buffer)
+	req := s.Split(line, " ")
+
+	if req[0] != "GET" {
+		sendError(errors.New(req[0] + " is not allowed"))
+	}
+
+	switch req[1] {
+	case "/uptime":
+		uptime, err := getUptime()
+		if err != nil {
+			sendError(err)
+		}
+		sendResult(uptime)
+	case "/cpu":
+		cpu, err := getCPUUsage()
+		if err != nil {
+			sendError(err)
+		}
+		sendResult(cpu)
+	case "/memory":
+		mem, err := getMemUsage()
+		if err != nil {
+			sendError(err)
+		}
+		sendResult(mem)
+	case "/network":
+		net, err := getNetUsage()
+		if err != nil {
+			sendError(err)
+		}
+		sendResult(net)
+	case "/wireguard":
+		peerRates, err := calcPeersRates()
+		if err != nil {
+			sendError(err)
+		}
+		wgDump, err := parseWGDump()
+		if err != nil {
+			sendError(err)
+		}
+		peers, err := getWGPeers(wgDump, peerRates)
+		if err != nil {
+			sendError(err)
+		}
+		sendResult(peers)
+	default:
+		sendError(errors.New(req[1] + " is not a existing route"))
+	}
 }
