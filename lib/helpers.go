@@ -1,6 +1,7 @@
 package lib
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -33,10 +34,14 @@ func QueryData(host string, port int, path string) (DataModel, error) {
 
 // QueryData issues a HTTP-GET request on a specified host and port and
 // unmarshals the received JSON body into the shared data structure.
-func QueryData(host string, port int, path string) (interface{}, error) {
+func QueryData(host string, port int, path string, timeout int) (interface{}, error) {
 	var result interface{}
 
-	resp, err := http.Get("http://" + host + ":" + s.Itoa(port) + path)
+	client := http.Client{
+		Timeout: time.Duration(timeout) * time.Second,
+	}
+
+	resp, err := client.Get("http://" + host + ":" + s.Itoa(port) + path)
 	if err != nil {
 		return result, err
 	}
@@ -162,12 +167,11 @@ func ParseNetUsage(data []NetUsage, nicname string) ([2]string, error) {
 		if data[i].Name == nicname {
 			result[0] = fmt.Sprintf("'upstream'=%skbps", s.FormatFloat(data[i].Tx, 'f', 2, 64))
 			result[1] = fmt.Sprintf("'downstream'=%skbps", s.FormatFloat(data[i].Rx, 'f', 2, 64))
-		} else {
-			return result, errors.New("Could not find device with name " + nicname)
+			return result, nil
 		}
 	}
 
-	return result, nil
+	return result, errors.New("Could not find device with name " + nicname)
 }
 
 /*// ParsePeer parses the Wireguard related metrics of a specified peer retrieved from the agent
@@ -225,12 +229,21 @@ func GetPeerByIndex(peerArr []WGPeer, index int64) (WGPeer, error) {
 			return result, err
 		}
 
+		//fmt.Printf("Testing %d against given index %d: %t\n", idx, index, idx == index)
+
 		if idx == index {
 			result = peerArr[i]
-		} else {
-			return result, errors.New("Could not find peer with index " + s.FormatInt(index, 10) + ", empty response?")
+			// fmt.Println(result)
+			return result, nil
 		}
 	}
 
-	return result, nil
+	return result, errors.New("Could not find peer with index " + s.FormatInt(index, 10) + ", empty response?")
+}
+
+func isJSONArray(data []byte) bool {
+	x := bytes.TrimLeft(data, " \t\r\n")
+	//isArray := len(x) > 0 && x[0] == '['
+	//isObject := len(x) > 0 && x[0] == '{'
+	return len(x) > 0 && x[0] == '['
 }

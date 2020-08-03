@@ -73,6 +73,11 @@ func checkRequiredFlags(args *CLIArguments) bool {
 		return false
 	}
 
+	if args.Timeout == nil || *args.Timeout == 0 || *args.Timeout > 120 {
+		fmt.Println("No timeout was set or timeout is 0 or greater than 2 mins")
+		return false
+	}
+
 	return true
 }
 
@@ -92,18 +97,78 @@ func main() {
 				Aliases:     []string{"up", "u"},
 				Usage:       "get device uptime (in s)",
 				Description: "retrieves the device uptime since last (re)boot",
+				Action: func(c *cli.Context) error {
+					cliArgs := setRequired(c.String("hostname"), c.Int("port"), c.Int("timeout"))
+
+					if c.IsSet("warning") {
+						cliArgs.setWarning(c.Float64("warning"))
+					}
+
+					if c.IsSet("critical") {
+						cliArgs.setCritical(c.Float64("critical"))
+					}
+
+					if !checkRequiredFlags(&cliArgs) {
+						os.Exit(exitUnknown)
+					}
+
+					CheckUptime(cliArgs)
+
+					os.Exit(GlobalReturnCode)
+					return nil
+				},
 			},
 			&cli.Command{
 				Name:        "cpu",
 				Aliases:     []string{"c"},
 				Usage:       "get CPU usage (in %)",
 				Description: "retrieves the current CPU usage as a percentage of total cpu time split between user, system and idle",
+				Action: func(c *cli.Context) error {
+					cliArgs := setRequired(c.String("hostname"), c.Int("port"), c.Int("timeout"))
+
+					if c.IsSet("warning") {
+						cliArgs.setWarning(c.Float64("warning"))
+					}
+
+					if c.IsSet("critical") {
+						cliArgs.setCritical(c.Float64("critical"))
+					}
+
+					if !checkRequiredFlags(&cliArgs) {
+						os.Exit(exitUnknown)
+					}
+
+					CheckCPU(cliArgs)
+
+					os.Exit(GlobalReturnCode)
+					return nil
+				},
 			},
 			&cli.Command{
 				Name:        "memory",
 				Aliases:     []string{"mem", "m"},
 				Usage:       "get memory usage (in %)",
 				Description: "retrieves the current Memory usage as a percentage of total memory available split between used, cached and free RAM",
+				Action: func(c *cli.Context) error {
+					cliArgs := setRequired(c.String("hostname"), c.Int("port"), c.Int("timeout"))
+
+					if c.IsSet("warning") {
+						cliArgs.setWarning(c.Float64("warning"))
+					}
+
+					if c.IsSet("critical") {
+						cliArgs.setCritical(c.Float64("critical"))
+					}
+
+					if !checkRequiredFlags(&cliArgs) {
+						os.Exit(exitUnknown)
+					}
+
+					CheckMemory(cliArgs)
+
+					os.Exit(GlobalReturnCode)
+					return nil
+				},
 			},
 			&cli.Command{
 				Name:        "network",
@@ -117,6 +182,74 @@ func main() {
 						Value:       "eth0",
 						DefaultText: "eth0",
 						Usage:       "Specifies the device that should be queried",
+					},
+				},
+				Subcommands: []*cli.Command{
+					&cli.Command{
+						Name:        "upstream",
+						Aliases:     []string{"up", "u"},
+						Usage:       "get NIC upstream (in kbps)",
+						Description: "retrieves current upstream in kbps for a given network device",
+						Action: func(c *cli.Context) error {
+							cliArgs := setRequired(c.String("hostname"), c.Int("port"), c.Int("timeout"))
+
+							if c.IsSet("device") {
+								cliArgs.setNetDevice(c.String("device"))
+							} else {
+								cli.ShowCommandHelp(c, "network")
+								os.Exit(exitUnknown)
+							}
+
+							if c.IsSet("warning") {
+								cliArgs.setWarning(c.Float64("warning"))
+							}
+
+							if c.IsSet("critical") {
+								cliArgs.setCritical(c.Float64("critical"))
+							}
+
+							if !checkRequiredFlags(&cliArgs) {
+								os.Exit(exitUnknown)
+							}
+
+							CheckUpstream(cliArgs)
+
+							os.Exit(GlobalReturnCode)
+							return nil
+						},
+					},
+					&cli.Command{
+						Name:        "downstream",
+						Aliases:     []string{"down", "d"},
+						Usage:       "get NIC donwstream (in kbps)",
+						Description: "retrieves current downstream in kbps for a given network device",
+						Action: func(c *cli.Context) error {
+							cliArgs := setRequired(c.String("hostname"), c.Int("port"), c.Int("timeout"))
+
+							if c.IsSet("device") {
+								cliArgs.setNetDevice(c.String("device"))
+							} else {
+								cli.ShowCommandHelp(c, "network")
+								os.Exit(exitUnknown)
+							}
+
+							if c.IsSet("warning") {
+								cliArgs.setWarning(c.Float64("warning"))
+							}
+
+							if c.IsSet("critical") {
+								cliArgs.setCritical(c.Float64("critical"))
+							}
+
+							if !checkRequiredFlags(&cliArgs) {
+								os.Exit(exitUnknown)
+							}
+
+							CheckDownstream(cliArgs)
+
+							os.Exit(GlobalReturnCode)
+							return nil
+						},
 					},
 				},
 			},
@@ -139,19 +272,97 @@ func main() {
 						Name:        "handshake",
 						Aliases:     []string{"hs"},
 						Usage:       "get seconds since last handshake (in s)",
-						Description: "retrieves the peers uptime since last (re)boot",
+						Description: "retrieves seconds since last handshake with gateway",
+						Action: func(c *cli.Context) error {
+							cliArgs := setRequired(c.String("hostname"), c.Int("port"), c.Int("timeout"))
+
+							if c.IsSet("peer") {
+								cliArgs.setPeer(c.Int64("peer"))
+							} else {
+								os.Exit(exitUnknown)
+							}
+
+							if c.IsSet("warning") {
+								cliArgs.setWarning(c.Float64("warning"))
+							}
+
+							if c.IsSet("critical") {
+								cliArgs.setCritical(c.Float64("critical"))
+							}
+
+							if !checkRequiredFlags(&cliArgs) {
+								os.Exit(exitUnknown)
+							}
+
+							CheckPeerHandshake(cliArgs)
+
+							os.Exit(GlobalReturnCode)
+							return nil
+						},
 					},
 					&cli.Command{
 						Name:        "downstream",
-						Aliases:     []string{"ds"},
+						Aliases:     []string{"down", "d"},
 						Usage:       "get current downstream (in kbps)",
 						Description: "retrieves the current downstream of the selected WireGuard peer in kbit per second",
+						Action: func(c *cli.Context) error {
+							cliArgs := setRequired(c.String("hostname"), c.Int("port"), c.Int("timeout"))
+
+							if c.IsSet("peer") {
+								cliArgs.setPeer(c.Int64("peer"))
+							} else {
+								os.Exit(exitUnknown)
+							}
+
+							if c.IsSet("warning") {
+								cliArgs.setWarning(c.Float64("warning"))
+							}
+
+							if c.IsSet("critical") {
+								cliArgs.setCritical(c.Float64("critical"))
+							}
+
+							if !checkRequiredFlags(&cliArgs) {
+								os.Exit(exitUnknown)
+							}
+
+							CheckPeerDownstream(cliArgs)
+
+							os.Exit(GlobalReturnCode)
+							return nil
+						},
 					},
 					&cli.Command{
 						Name:        "upstream",
-						Aliases:     []string{"us"},
+						Aliases:     []string{"up", "u"},
 						Usage:       "get current upstream (in kbps)",
 						Description: "retrieves the current uprstream of the selected WireGuard peer in kbit per second",
+						Action: func(c *cli.Context) error {
+							cliArgs := setRequired(c.String("hostname"), c.Int("port"), c.Int("timeout"))
+
+							if c.IsSet("peer") {
+								cliArgs.setPeer(c.Int64("peer"))
+							} else {
+								os.Exit(exitUnknown)
+							}
+
+							if c.IsSet("warning") {
+								cliArgs.setWarning(c.Float64("warning"))
+							}
+
+							if c.IsSet("critical") {
+								cliArgs.setCritical(c.Float64("critical"))
+							}
+
+							if !checkRequiredFlags(&cliArgs) {
+								os.Exit(exitUnknown)
+							}
+
+							CheckPeerUpstream(cliArgs)
+
+							os.Exit(GlobalReturnCode)
+							return nil
+						},
 					},
 				},
 			},
