@@ -1,7 +1,6 @@
 package lib
 
 import (
-	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -90,7 +89,7 @@ func ParseCPUUsage(data CPUUsage) (string, error) {
 	var result string
 
 	if !structs.IsStruct(data) {
-		return result, errors.New("data is not a struct, empty response?")
+		return result, errors.New("data is not a struct")
 	}
 
 	return fmt.Sprintf("'user'=%s%% 'system'=%s%% 'idle'=%s%%",
@@ -123,7 +122,7 @@ func ParseMemUsage(data MemUsage) (string, error) {
 	var result string
 
 	if !structs.IsStruct(data) {
-		return result, errors.New("data is not a struct, empty response?")
+		return result, errors.New("data is not a struct")
 	}
 
 	return fmt.Sprintf("'used'=%s%% 'cached'=%s%% 'free'=%s%%",
@@ -160,7 +159,7 @@ func ParseNetUsage(data []NetUsage, nicname string) ([2]string, error) {
 	var result [2]string
 
 	if len(data) == 0 {
-		return result, errors.New("Data holds no devices, empty response?")
+		return result, errors.New("Data holds no devices")
 	}
 
 	for i := range data {
@@ -238,12 +237,12 @@ func GetPeerByIndex(peerArr []WGPeer, index int64) (WGPeer, error) {
 		}
 	}
 
-	return result, errors.New("Could not find peer with index " + s.FormatInt(index, 10) + ", empty response?")
+	return result, errors.New("Could not find peer with index " + s.FormatInt(index, 10))
 }
 
-func isJSONArray(data []byte) bool {
+/*func isJSONArray(data []byte) bool {
 	x := bytes.TrimLeft(data, " \t\r\n")
 	//isArray := len(x) > 0 && x[0] == '['
 	//isObject := len(x) > 0 && x[0] == '{'
 	return len(x) > 0 && x[0] == '['
-}
+}*/

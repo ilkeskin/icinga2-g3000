@@ -1,0 +1,16 @@
+# Icinga2 agent for use with check_g3000
+
+service check_mk_agent
+{
+        type           = UNLISTED
+        port           = 5665
+        socket_type    = stream
+        protocol       = tcp
+        wait           = no
+        user           = root
+        server         = /etc/upload/icinga2-agent
+        log_on_success = HOST PID DURATION
+        log_on_failure = ATTEMPT USERID
+        only_from      = 192.168.25.250
+        disable        = no
+}

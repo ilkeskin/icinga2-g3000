@@ -106,11 +106,6 @@ func CheckUpstream(args CLIArguments) {
 	decoder, err := mapstructure.NewDecoder(config)
 	decoder.Decode(res)
 
-	if err != nil {
-		fmt.Printf("UNKNOWN - %s\n", err)
-		return
-	}
-
 	var upstream float64
 	for i := range netArr {
 		if netArr[i].Name == *args.NetDevice {
@@ -119,6 +114,10 @@ func CheckUpstream(args CLIArguments) {
 	}
 
 	output, err := lib.ParseNetUsage(netArr, *args.NetDevice)
+	if err != nil {
+		fmt.Printf("UNKNOWN - %s\n", err)
+		return
+	}
 	GlobalReturnCode = exitOk
 
 	if args.Warning != nil && upstream > *args.Warning {
@@ -155,11 +154,6 @@ func CheckDownstream(args CLIArguments) {
 	decoder, err := mapstructure.NewDecoder(config)
 	decoder.Decode(res)
 
-	if err != nil {
-		fmt.Printf("UNKNOWN - %s\n", err)
-		return
-	}
-
 	var upstream float64
 	for i := range netArr {
 		if netArr[i].Name == *args.NetDevice {
@@ -168,6 +162,11 @@ func CheckDownstream(args CLIArguments) {
 	}
 
 	output, err := lib.ParseNetUsage(netArr, *args.NetDevice)
+	if err != nil {
+		fmt.Printf("UNKNOWN - %s\n", err)
+		return
+	}
+
 	GlobalReturnCode = exitOk
 
 	if args.Warning != nil && upstream > *args.Warning {
